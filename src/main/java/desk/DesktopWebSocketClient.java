@@ -2,7 +2,6 @@ package desk;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -11,6 +10,9 @@ import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -45,6 +47,7 @@ public final class DesktopWebSocketClient {
 
     // NEW: ensure we don't stack multiple heartbeat tasks after reconnects
     private volatile ScheduledFuture<?> heartbeatTask;
+    private final Object logLock = new Object();
 
     public DesktopWebSocketClient(AppConfig cfg, ExcelUpdater upd) {
         this.cfg = Objects.requireNonNull(cfg, "cfg");
@@ -179,23 +182,38 @@ public final class DesktopWebSocketClient {
         return r.getClass().getSimpleName() + ": " + (r.getMessage() == null ? "(no message)" : r.getMessage());
     }
 
-    private  void log(String s) { 
-    	
-    	try {
-			FileWriter fr = new FileWriter(cfg.logsDir+File.separator+"desktopClientLog.txt");
-			PrintWriter pr = new PrintWriter(fr);
-			pr.println(LocalDateTime.now() + " >>  " + s);
-			pr.close();
-			fr.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-    	
-    	
-    	System.out.println(s);
-    	
-    
+    private  void log(String s) {
+        Path logFile = resolveLogFile();
+        if (logFile != null) {
+            synchronized (logLock) {
+                try {
+                    Files.createDirectories(logFile.getParent());
+                    try (FileWriter fr = new FileWriter(logFile.toFile(), true);
+                         PrintWriter pr = new PrintWriter(fr)) {
+                        pr.println(LocalDateTime.now() + " >>  " + s);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        System.out.println(s);
+    }
+
+    private Path resolveLogFile() {
+        try {
+            String dirStr = cfg.logsDir;
+            Path dir;
+            if (dirStr != null && !dirStr.isBlank()) {
+                dir = Paths.get(dirStr.trim());
+            } else {
+                dir = Paths.get(System.getProperty("user.home"), "apache-bridge", "apachebridge-logs");
+            }
+            return dir.resolve("desktop-client.log");
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private final class ListenerImpl implements WebSocket.Listener {

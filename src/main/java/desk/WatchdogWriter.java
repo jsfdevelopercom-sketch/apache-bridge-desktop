@@ -89,14 +89,35 @@ public final class WatchdogWriter {
         // This is resilient across quoting and paths.
         String className = "desk.ServiceMain";
 
+        String guiClass = "desk.App";
+        String controlPanelClass = "desk.ControlPanel";
+
         return "#!/usr/bin/env bash\n" +
                "set -u\n" +
                "JAR=\"" + safeJar + "\"\n" +
                "LOG=\"" + safeLog + "\"\n" +
                "PIDF=\"" + safePid + "\"\n" +
                "MAIN=\"" + className + "\"\n" +
+               "GUI=\"" + guiClass + "\"\n" +
+               "CONTROL_PANEL=\"" + controlPanelClass + "\"\n" +
                "mkdir -p \"$(dirname \"$LOG\")\" || true\n" +
                "echo \"[START " + now + "] Watchdog running (unix)\" >> \"$LOG\"\n" +
+               "\n" +
+               "kill_gui() {\n" +
+               "  local target\n" +
+               "  for target in \"$GUI\" \"$CONTROL_PANEL\"; do\n" +
+               "    local ids\n" +
+               "    ids=$(pgrep -f \"$target\" 2>/dev/null || true)\n" +
+               "    if [ -n \"$ids\" ]; then\n" +
+               "      for pid in $ids; do\n" +
+               "        local cmd\n" +
+               "        cmd=$(ps -o args= -p \"$pid\" 2>/dev/null || echo \"$target\")\n" +
+               "        echo \"[WARN $(date)] Stopping stray GUI process $pid -> $cmd\" >> \"$LOG\"\n" +
+               "        kill \"$pid\" 2>/dev/null || true\n" +
+               "      done\n" +
+               "    fi\n" +
+               "  done\n" +
+               "}\n" +
                "\n" +
                "is_running_pid() {\n" +
                "  local pid=\"$1\"\n" +
@@ -114,6 +135,7 @@ public final class WatchdogWriter {
                "  echo \"[INFO $(date)] Starting desktop client (ServiceMain)\" >> \"$LOG\"\n" +
                "  # Guard against GUI subsystems; enforce headless at JVM and env level\n" +
                "  export JAVA_TOOL_OPTIONS=\"-Djava.awt.headless=true\"\n" +
+               "  export APACHE_BRIDGE_FORCE_HEADLESS=1\n" +
                "  export DISPLAY=\"\"\n" +
                "  nohup java -Djava.awt.headless=true -cp \"$JAR\" \"$MAIN\" >> \"$LOG\" 2>&1 &\n" +
                "  echo $! > \"$PIDF\"\n" +
@@ -125,6 +147,7 @@ public final class WatchdogWriter {
                "    PID=$(cat \"$PIDF\" 2>/dev/null || echo \"\")\n" +
                "  fi\n" +
                "\n" +
+               "  kill_gui\n" +
                "  if ! is_running_pid \"$PID\"; then\n" +
                "    # Second-chance: find any running ServiceMain\n" +
                "    MPID=$(pgrep -af \"java\" | grep -F \"$MAIN\" | awk 'NR==1{print $1}')\n" +
@@ -153,6 +176,8 @@ public final class WatchdogWriter {
         String now    = LocalDateTime.now().toString();
 
         String className = "desk.ServiceMain";
+        String guiClass   = "desk.App";
+        String controlPanelClass = "desk.ControlPanel";
 
         return ""
             + "$ErrorActionPreference = 'Stop'\n"
@@ -160,8 +185,21 @@ public final class WatchdogWriter {
             + "$log  = \"" + escLog + "\"\n"
             + "$pidf = \"" + escPid + "\"\n"
             + "$main = \"" + className + "\"\n"
+            + "$gui  = \"" + guiClass + "\"\n"
+            + "$panel = \"" + controlPanelClass + "\"\n"
             + "New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null\n"
             + "Add-Content -Path $log -Value \"[START " + now + "] Watchdog running (windows)\"\n"
+            + "\n"
+            + "function Stop-StrayGui {\n"
+            + "  param([string]$Token)\n"
+            + "  try {\n"
+            + "    $procs = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like ('*' + $Token + '*') }\n"
+            + "    foreach ($p in $procs) {\n"
+            + "      Add-Content -Path $log -Value (\"[WARN \" + (Get-Date) + \"] Stopping stray GUI process pid=\" + $p.ProcessId + \", cmd=\" + $p.CommandLine + \"]\")\n"
+            + "      try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop } catch {}\n"
+            + "    }\n"
+            + "  } catch {}\n"
+            + "}\n"
             + "\n"
             + "function Test-IsOurClient {\n"
             + "  param([int]$Pid)\n"
@@ -177,6 +215,8 @@ public final class WatchdogWriter {
             + "\n"
             + "function Start-Client {\n"
             + "  Add-Content -Path $log -Value \"[INFO $(Get-Date)] Starting desktop client (ServiceMain)\"\n"
+            + "  $env:JAVA_TOOL_OPTIONS = '-Djava.awt.headless=true'\n"
+            + "  $env:APACHE_BRIDGE_FORCE_HEADLESS = '1'\n"
             + "  $args = @('-Djava.awt.headless=true','-cp', $jar, $main)\n"
             + "  $p = Start-Process -FilePath 'java' -ArgumentList $args -WindowStyle Hidden -PassThru -RedirectStandardOutput $log -RedirectStandardError $log\n"
             + "  Set-Content -Path $pidf -Value $p.Id\n"
@@ -187,6 +227,8 @@ public final class WatchdogWriter {
             + "  if (Test-Path $pidf) {\n"
             + "    try { $pidVal = [int](Get-Content -Path $pidf -ErrorAction Stop) } catch {}\n"
             + "  }\n"
+            + "  Stop-StrayGui -Token $gui\n"
+            + "  Stop-StrayGui -Token $panel\n"
             + "  if (-not (Test-IsOurClient -Pid $pidVal)) {\n"
             + "    try {\n"
             + "      $cand = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like ('*' + $main + '*') } | Select-Object -First 1\n"

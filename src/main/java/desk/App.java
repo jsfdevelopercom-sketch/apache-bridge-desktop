@@ -8,6 +8,21 @@ public final class App {
         boolean headless = false;
         for (String a : args) if ("--headless".equalsIgnoreCase(a)) headless = true;
 
+        // Allow watchdog / service scripts to force headless mode via env var so
+        // a manifest "java -jar" launch never surprises users with the GUI.
+        if (!headless) {
+            String forced = System.getenv("APACHE_BRIDGE_FORCE_HEADLESS");
+            if (forced != null && !forced.isBlank()) {
+                headless = "1".equals(forced.trim())
+                        || "true".equalsIgnoreCase(forced.trim())
+                        || "yes".equalsIgnoreCase(forced.trim());
+            }
+        }
+
+        if (headless) {
+            System.setProperty("java.awt.headless", "true");
+        }
+
         // Normal mode (GUI)
         if (!headless) {
             // Just show the control panel; installer is a separate JAR now.
