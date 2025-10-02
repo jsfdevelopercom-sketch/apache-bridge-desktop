@@ -63,8 +63,8 @@ public final class AutoStartManager {
                         "-NoProfile", "-ExecutionPolicy", "Bypass",
                         "-File", script.toString());
             } else {
-                // Run via bash to inherit interactive PATH on Linux/macOS
-                pb = new ProcessBuilder("bash", "-lc", "\"" + script.toString().replace("\"","\\\"") + "\"");
+                // Execute the script directly via bash to avoid shell quoting issues
+                pb = new ProcessBuilder("bash", script.toString());
             }
             pb.redirectErrorStream(true);
             pb.start();
