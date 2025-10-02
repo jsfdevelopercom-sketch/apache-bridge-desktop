@@ -1,0 +1,107 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>apache-bridge-desktop</groupId>
+  <artifactId>apache-bridge-desktop</artifactId>
+  <version>0.2.1</version>
+  <name>ApacheBridge Desktop Client</name>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <!-- JSON -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.17.2</version>
+    </dependency>
+
+    <!-- Logging -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.13</version>
+    </dependency>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.5.6</version>
+    </dependency>
+
+    <!-- Excel -->
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>5.2.5</version>
+    </dependency>
+
+    <!-- Optional: Apache HttpClient 5 -->
+    <dependency>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+      <artifactId>httpclient5</artifactId>
+      <version>5.3.1</version>
+      <optional>true</optional>
+    </dependency>
+  </dependencies>
+
+  <build>
+  
+    
+    <plugins>
+      <!-- Compile for Java 17 -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+        <configuration>
+          <release>${maven.compiler.release}</release>
+        </configuration>
+      </plugin>
+
+      <!-- Shade plugin to produce 2 JARs -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+
+          <!-- GUI JAR -->
+          <execution>
+            <id>shade-gui</id>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <finalName>apache-bridge-desktop-gui-all</finalName>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>desk.App</mainClass>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+
+          <!-- Installer JAR -->
+          <execution>
+            <id>shade-installer</id>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <finalName>apache-bridge-desktop-installer-all</finalName>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>desk.InstallerApp</mainClass>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -1,0 +1,19 @@
+# Eclipse
+.classpath
+.project
+.settings/
+# Maven/Gradle/Build
+target/
+bin/
+build/
+out/
+# OS junk
+.DS_Store
+Thumbs.db
+# Logs & temp
+*.log
+*.tmp
+*.swp
+# Java
+hs_err_pid*
+replay_pid*
